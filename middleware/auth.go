@@ -5,7 +5,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-		"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
 	"github.com/vishal2911/userAssignment/utils"
 )
 
@@ -44,9 +45,14 @@ func AuthMiddleware(redisClient *redis.Client) gin.HandlerFunc {
 		}
 
 		// Set user ID in the context
-		c.Set("user_id", uint(claims["user_id"].(float64)))
+		userID, err := uuid.Parse(claims["user_id"].(string))
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID in token"})
+			c.Abort()
+			return
+		}
+		c.Set("user_id", userID)
 
 		c.Next()
 	}
 }
-

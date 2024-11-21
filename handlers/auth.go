@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
 	"github.com/vishal2911/userAssignment/models"
 	"github.com/vishal2911/userAssignment/utils"
 )
@@ -28,16 +30,13 @@ func SignUp(redisClient *redis.Client) gin.HandlerFunc {
 			}
 		}
 
-		// Hash password
-		if err := user.HashPassword(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
-			return
-		}
+		// Generate UUID
+		user.GenerateUUID()
 
 		// Save user (in a real application, you'd save to a database)
 		users = append(users, user)
 
-		c.JSON(http.StatusCreated, gin.H{"message": "User created successfully"})
+		c.JSON(http.StatusCreated, gin.H{"message": "User created successfully", "id": user.ID})
 	}
 }
 
@@ -56,31 +55,30 @@ func SignIn(redisClient *redis.Client) gin.HandlerFunc {
 		// Find user
 		var user models.User
 		for _, u := range users {
-			if u.Email == credentials.Email {
+			if u.Email == credentials.Email && u.Password == credentials.Password {
 				user = u
 				break
 			}
 		}
 
-		if user.ID == 0 {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
-			return
-		}
+		fmt.Println("users", users)
+		fmt.Println("credentials", credentials)
+		fmt.Println("user", user)
 
-		// Check password
-		if err := user.CheckPassword(credentials.Password); err != nil {
+
+		if user.ID == uuid.Nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 			return
 		}
 
 		// Generate tokens
-		accessToken, err := utils.GenerateAccessToken(user.ID)
+		accessToken, err := utils.GenerateAccessToken(user.ID.String())
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
 			return
 		}
 
-		refreshToken, err := utils.GenerateRefreshToken(user.ID)
+		refreshToken, err := utils.GenerateRefreshToken(user.ID.String())
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate refresh token"})
 			return
@@ -112,7 +110,12 @@ func RefreshToken(redisClient *redis.Client) gin.HandlerFunc {
 		}
 
 		// Generate new access token
-		userID := uint(claims["user_id"].(float64))
+		userID, ok := claims["user_id"].(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID in token"})
+			return
+		}
+
 		accessToken, err := utils.GenerateAccessToken(userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})

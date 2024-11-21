@@ -9,6 +9,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+
 var (
 	secretKey     = []byte("your-secret-key") // In a real application, use an environment variable
 	redisClient   *redis.Client
@@ -19,7 +20,7 @@ func SetRedisClient(client *redis.Client) {
 	redisClient = client
 }
 
-func GenerateAccessToken(userID uint) (string, error) {
+func GenerateAccessToken(userID string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
 		"exp":     time.Now().Add(time.Hour).Unix(), // Token expires in 1 hour
@@ -29,7 +30,7 @@ func GenerateAccessToken(userID uint) (string, error) {
 	return token.SignedString(secretKey)
 }
 
-func GenerateRefreshToken(userID uint) (string, error) {
+func GenerateRefreshToken(userID string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
 		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(), // Token expires in 7 days
@@ -66,3 +67,4 @@ func IsTokenBlacklisted(token string) bool {
 	_, err := redisClient.Get(context.Background(), "blacklist:"+token).Result()
 	return err == nil
 }
+
